@@ -13,24 +13,64 @@ roll_prob <- matrix(c(fair_roll, loaded_roll), nrow=2, ncol=6, byrow=TRUE)
 rownames(roll_prob) <- dice
 colnames(roll_prob) <- number
 
-# Implementation of HMM Model
-# n: The number of times of simulation
-# init_prob: The initial probability
-# trans_mat: The transition matrix P
-# outcome_mat: The outcome matrix E
-# state_label: The label of states, e.g., {"H","T"}
-# outcome_label: The label of outcomes, e.g., {1,2,3,4,5,6}
-hmm <- function(n, init_prob, trans_mat, outcome_mat, state_label, outcome_label) {
-    # Set up results
+#------------------------------------------------------------------------------
+# Description
+#   Simulation of Hidden Markov Model
+# Arguments:
+#   n: Length of observations
+#   init_prob: The initial probability
+#   trans_mat: The transition matrix P
+#   outcome_mat: The observation matrix E
+#------------------------------------------------------------------------------
+hidden_markov <- function(n, init_prob, trans_mat, outcome_mat) {
+    # Store some quantities for convenience
+    state_label <- colnames(trans_mat)   # The label of states, e.g., {"H","T"}
+    outcome_label <- colnames(outcome_mat)   # The label of outcomes, e.g., {1,2,3,4,5,6}
+    num_state <- length(state_label)    # The number of states
+    num_outcome <- length(outcome_label)    # The number of outcomes
+    # Set up objects to store the result
     states <- rep(0, n)
-    outcomes <- rep(0, n)
-    # Initialize the states
-    states[1] <- state_label[sample(1:length(state_label), 1, prob=init_prob)]
-    outcomes[1] <- outcome_label[sample(1:length(outcome_label), 1, prob=outcome_mat[states[1],])]
+    obs <- rep(0, n)
+    # Initialize the simulation
+    states[1] <- state_label[sample(1:num_state, 1, prob=init_prob)]
+    obs[1] <- outcome_label[sample(1:num_outcome, 1, prob=outcome_mat[states[1],])]
     # Continue simulating
     for (i in 2:n) {
-        states[i] <- state_label[sample(1:length(state_label), 1, prob=trans_mat[states[i-1],])]
-        outcomes[i] <- outcome_label[sample(1:length(outcome_label), 1, prob=outcome_mat[states[i],])]
+        states[i] <- state_label[sample(1:num_state, 1, prob=trans_mat[states[i-1],])]
+        obs[i] <- outcome_label[sample(1:num_outcome, 1, prob=outcome_mat[states[i],])]
     }
-    return(list(states, outcomes))
+    return(list(Q=states, O=obs))
+}
+
+#------------------------------------------------------------------------------
+# Description
+#   Perform forward algorithm (alpha-pass) to a given sequence of 
+#   observations to compute its probability
+# Arguments:
+#   obs: Sequence of observations
+#   init_prob: The initial probability
+#   trans_mat: The transition matrix P
+#   outcome_mat: The observation matrix E
+#------------------------------------------------------------------------------
+forward_sum <- function(obs, init_prob, trans_mat, outcome_mat) {
+    # Store some quantities for convenience
+    len <- length(obs)    # Length of observations
+    state_label <- colnames(trans_mat)   # The label of states, e.g., {"H","T"}
+    num_state <- length(state_label)    # The number of states
+    # Set up objects to store the results
+    probs <- matrix(0, nrow=len, ncol=num_state)
+    colnames(probs) <- state_label
+    # Calculation for the first step
+    for (k in 1:num_state) {
+        probs[1,k] <- init_prob[k] * outcome_mat[k,obs[1]]
+    }
+    # Forward Summation
+    for (i in 2:len) {
+        for (current_state in state_label) {
+            for (past_state in state_label) {
+                probs[i,current_state] <- probs[i,current_state] + trans_mat[past_state,current_state] * probs[i-1,past_state]
+            }
+            probs[i,current_state] <- probs[i,current_state] * outcome_mat[current_state,obs[i]]
+        }
+    }
 }
