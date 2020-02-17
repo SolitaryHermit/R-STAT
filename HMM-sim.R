@@ -67,10 +67,52 @@ forward_sum <- function(obs, init_prob, trans_mat, outcome_mat) {
     # Forward Summation
     for (i in 2:len) {
         for (current_state in state_label) {
+            # prob[i,current_state] == P(O_i,q_i | lambda)
             for (past_state in state_label) {
-                probs[i,current_state] <- probs[i,current_state] + trans_mat[past_state,current_state] * probs[i-1,past_state]
+                # P(q_i | q_{i-1}, lambda) * P(O_{i-1}, q_{i-1} | lambda)
+                increment <- trans_mat[past_state,current_state] * probs[i-1,past_state]
+                probs[i,current_state] <- probs[i,current_state] + increment
             }
+            # Multiply by P(o_i | q_i, lambda)
             probs[i,current_state] <- probs[i,current_state] * outcome_mat[current_state,obs[i]]
         }
     }
+    return(probs)
+}
+
+#------------------------------------------------------------------------------
+# Description
+#   Perform backward algorithm (beta-pass) to a given sequence of 
+#   observations to find an optimal state sequence for it
+# Arguments:
+#   obs: Sequence of observations
+#   init_prob: The initial probability
+#   trans_mat: The transition matrix P
+#   outcome_mat: The observation matrix E
+#------------------------------------------------------------------------------
+backward_sum <- function(obs, init_prob, trans_mat, outcome_mat) {
+    # Store some quantities for convenience
+    len <- length(obs)    # Length of observations
+    state_label <- colnames(trans_mat)   # The label of states, e.g., {"H","T"}
+    num_state <- length(state_label)    # The number of states
+    # Set up objects to store the results
+    prob_beta <- matrix(0, nrow=len, ncol=num_state)
+    prob_beta[len,] <- 1
+    colnames(prob_beta) <- state_label
+    # Start calculating
+    for (i in (len - 1):1) {
+        for (current_state in state_label) {
+            # prob_beta[i,current_state] == P(o_{i+1},...,o_t | q_i, lambda)
+            for (future_state in state_label) {
+                # P(q_{i+1} | q_i, lambda) * P(o_{i+1} | q_{i+1}, lambda) * P(o_{i+2},...,o_t | q_{i+1}, lambda)
+                increment <- trans_mat[current_state,future_state] * outcome_mat[future_state,obs[i+1]] * prob_beta[i+1,future_state]
+                prob_beta[i,current_state] <- prob_beta[i,current_state] + increment
+            }
+        }
+    }
+    # Then calculate the probability for each stage
+    prob_alpha <- forward_sum(obs, init_prob, trans_mat, outcome_mat)   # The probability calculated by alpha-pass
+    prob_t <- sum(prob_alpha[len,])     # The cumulative probability
+    likelihood <- prob_alpha * prob_beta / prob_t     # The likelihood for each stage
+    return(colnames(likelihood)[apply(likelihood, 1, which.max)])
 }
