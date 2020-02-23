@@ -131,3 +131,21 @@ forward_backward <- function(obs, init_prob, trans_mat, outcome_mat) {
     likelihood <- prob_alpha * prob_beta / prob_t     # The likelihood for each stage
     return(colnames(likelihood)[apply(likelihood, 1, which.max)])
 }
+
+viterbi <- function(obs, init_prob, trans_mat, outcome_mat) {
+    len <- length(obs)
+    state_label <- colnames(trans_mat)   # The label of states, e.g., {"H","T"}
+    num_state <- length(state_label)    # The number of states
+    A <- matrix(0, nrow=len, ncol=num_state)
+    B <- matrix(0, nrow=len, ncol=num_state)
+    q <- matrix(0, nrow=len, ncol=num_state)
+    colnames(A) <- state_label
+    colnames(B) <- state_label
+    colnames(q) <- state_label
+    # Initialization
+    for (k in 1:num_state) {
+        B[1, k] <- init_prob[k]
+        A[1, k] <- outcome_mat[k, obs[1]] * B[1, k]
+    }
+    return(list(A,B))
+}
