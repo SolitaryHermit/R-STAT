@@ -20,7 +20,7 @@ colnames(roll_prob) <- number
 #   n: Length of observations
 #   init_prob: The initial probability
 #   trans_mat: The transition matrix P
-#   outcome_mat: The observation matrix E
+#   outcome_mat: The emission matrix E
 #------------------------------------------------------------------------------
 hidden_markov <- function(n, init_prob, trans_mat, outcome_mat) {
     # Store some quantities for convenience
