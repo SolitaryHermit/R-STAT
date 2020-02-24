@@ -115,8 +115,7 @@ backward_sum <- function(obs, trans_mat, outcome_mat) {
 #------------------------------------------------------------------------------
 # Description
 #   Combine forward summation (alpha-pass) and backward summation (beta-pass) 
-#   to find an optimal find an optimal state sequence for a given sequence of 
-#   observations
+#   to find an optimal sequence for a given sequence of observations
 # Arguments:
 #   obs: Sequence of observations
 #   init_prob: The initial probability
@@ -132,20 +131,46 @@ forward_backward <- function(obs, init_prob, trans_mat, outcome_mat) {
     return(colnames(likelihood)[apply(likelihood, 1, which.max)])
 }
 
+#------------------------------------------------------------------------------
+# Description
+#   Use Viterbi algorithm to find an optimal state sequence for a given 
+#   sequence of observations
+# Arguments:
+#   obs: Sequence of observations
+#   init_prob: The initial probability
+#   trans_mat: The transition matrix P
+#   outcome_mat: The observation matrix E
+#------------------------------------------------------------------------------
 viterbi <- function(obs, init_prob, trans_mat, outcome_mat) {
+    # Store some quantities for convenience
     len <- length(obs)
     state_label <- colnames(trans_mat)   # The label of states, e.g., {"H","T"}
     num_state <- length(state_label)    # The number of states
-    A <- matrix(0, nrow=len, ncol=num_state)
-    B <- matrix(0, nrow=len, ncol=num_state)
-    q <- matrix(0, nrow=len, ncol=num_state)
-    colnames(A) <- state_label
-    colnames(B) <- state_label
-    colnames(q) <- state_label
-    # Initialization
+    # Initialize the matrices v and s
+    v <- matrix(0, nrow=len, ncol=num_state)
+    s <- matrix(0, nrow=len, ncol=num_state)
+    colnames(v) <- state_label
+    colnames(s) <- state_label
+    # Fill the first row
     for (k in 1:num_state) {
-        B[1, k] <- init_prob[k]
-        A[1, k] <- outcome_mat[k, obs[1]] * B[1, k]
+        v[1, k] <- log(outcome_mat[k, obs[1]] * init_prob[k])
     }
-    return(list(A,B))
+    # Continue filling
+    for (i in 2:len) {
+        for (current_state in state_label) {
+            tmp_prob <- matrix(0, nrow=1, ncol=num_state)
+            colnames(tmp_prob) <- state_label
+            for (past_state in state_label) {
+                tmp_prob[1, past_state] <- log(trans_mat[past_state, current_state]) + v[i-1, past_state]
+            }
+            v[i, current_state] <- log(outcome_mat[current_state, obs[i]]) + max(tmp_prob)
+            s[i, current_state] <- state_label[which.max(tmp_prob)]
+        }
+    }
+    # Back tracing the states
+    Q <- c(state_label[which.max(v[len,])])
+    for (i in len:2) {
+        Q <- c(as.character(s[len-1, Q[1]]), Q)
+    }
+    return(Q)
 }
