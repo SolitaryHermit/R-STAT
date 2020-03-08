@@ -1,18 +1,3 @@
-# Arguments of HMM Model
-dice <- c("F", "L")
-number <- seq(1, 6)
-# Setting states and transition matrix
-init_prob <- c(1/2, 1/2)
-P <- matrix(c(0.99, 0.01, 0.25, 0.75), nrow=2, ncol=2, byrow=TRUE)
-rownames(P) <- dice
-colnames(P) <- dice
-# Setting rolling probabilities
-fair_roll <- rep(1/6, 6)
-loaded_roll <- c(1/10, 1/10, 1/2, 1/10, 1/10, 1/10)
-roll_prob <- matrix(c(fair_roll, loaded_roll), nrow=2, ncol=6, byrow=TRUE)
-rownames(roll_prob) <- dice
-colnames(roll_prob) <- number
-
 #------------------------------------------------------------------------------
 # Description
 #   Simulation of Hidden Markov Model
@@ -22,24 +7,37 @@ colnames(roll_prob) <- number
 #   trans_mat: The transition matrix P
 #   outcome_mat: The emission matrix E
 #------------------------------------------------------------------------------
-hidden_markov <- function(n, init_prob, trans_mat, outcome_mat) {
-    # Store some quantities for convenience
-    state_label <- colnames(trans_mat)   # The label of states, e.g., {"H","T"}
-    outcome_label <- colnames(outcome_mat)   # The label of outcomes, e.g., {1,2,3,4,5,6}
-    num_state <- length(state_label)    # The number of states
-    num_outcome <- length(outcome_label)    # The number of outcomes
-    # Set up objects to store the result
-    states <- rep(0, n)
-    obs <- rep(0, n)
-    # Initialize the simulation
-    states[1] <- state_label[sample(1:num_state, 1, prob=init_prob)]
-    obs[1] <- outcome_label[sample(1:num_outcome, 1, prob=outcome_mat[states[1],])]
-    # Continue simulating
-    for (i in 2:n) {
-        states[i] <- state_label[sample(1:num_state, 1, prob=trans_mat[states[i-1],])]
-        obs[i] <- outcome_label[sample(1:num_outcome, 1, prob=outcome_mat[states[i],])]
+hidden_markov <- function(T, init_dist, trans_mat, emit_mat) {
+    # Record the constants
+    num_states <- nrow(emit_mat)
+    num_outcomes <- ncol(emit_mat)
+    # Save the labels for states
+    if (is.null(rownames(emit_mat))) {
+        state_labels <- 1:num_states
+    } else {
+        state_labels <- rownames(emit_mat)
     }
-    return(list(Q=states, O=obs))
+    # Save the labels for observations
+    if (is.null(colnames(emit_mat))) {
+        obs_labels <- 1:num_outcomes
+    } else {
+        obs_labels <- colnames(emit_mat)
+    }
+    # Set up the vectors recording the states and observations
+    states <- rep(0, T)
+    observations <- rep(0, T)
+    # Initialize by initial distribution and transition matrix
+    states[1] <- sample(1:num_states, 1, prob=init_dist)
+    observations[1] <- sample(1:num_outcomes, 1, prob=emit_mat[states[1],])
+    # Complete the following simulation
+    for (t in 2:T) {
+        states[t] <- sample(1:num_states, 1, prob=trans_mat[states[t-1],])
+        observations[t] <- sample(1:num_outcomes, 1, prob=emit_mat[states[t],])
+    }
+    # Set up the labels
+    states <- state_labels[states]
+    observations <- obs_labels[observations]
+    return(list(Q=states, O=observations))
 }
 
 #------------------------------------------------------------------------------
@@ -52,32 +50,26 @@ hidden_markov <- function(n, init_prob, trans_mat, outcome_mat) {
 #   trans_mat: The transition matrix P
 #   outcome_mat: The observation matrix E
 #------------------------------------------------------------------------------
-forward_sum <- function(obs, init_prob, trans_mat, outcome_mat) {
-    # Store some quantities for convenience
-    len <- length(obs)    # Length of observations
-    state_label <- colnames(trans_mat)   # The label of states, e.g., {"H","T"}
-    num_state <- length(state_label)    # The number of states
-    # Set up objects to store the results
-    probs <- matrix(0, nrow=len, ncol=num_state)
-    colnames(probs) <- state_label
-    # Calculation for the first step
-    for (k in 1:num_state) {
-        probs[1,k] <- init_prob[k] * outcome_mat[k,obs[1]]
+forward_algorithm <- function(observations, init_dist, trans_mat, emit_mat, output=NA) {
+    # Record the constants
+    T <- length(observations)
+    num_states <- nrow(emit_mat)
+    # Set up forward table
+    alpha <- matrix(0, nrow=num_states, ncol=T)
+    # Initialization
+    alpha[, 1] <- emit_mat[, observations[1]] * init_dist
+    # Recursion
+    for (t in 2:T) {
+        alpha[, t] <- emit_mat[, observations[t]] * (t(trans_mat) %*% alpha[, t-1])
     }
-    # Forward Summation
-    for (i in 2:len) {
-        for (current_state in state_label) {
-            # prob[i,current_state] == P(O_i,q_i | lambda)
-            for (past_state in state_label) {
-                # P(q_i | q_{i-1}, lambda) * P(O_{i-1}, q_{i-1} | lambda)
-                increment <- trans_mat[past_state,current_state] * probs[i-1,past_state]
-                probs[i,current_state] <- probs[i,current_state] + increment
-            }
-            # Multiply by P(o_i | q_i, lambda)
-            probs[i,current_state] <- probs[i,current_state] * outcome_mat[current_state,obs[i]]
-        }
+    # termination
+    prob <- sum(alpha[, T])
+    # Set up return values
+    if (output == "p") {
+        return(prob)
+    } else if (output == "t") {
+        return(alpha)
     }
-    return(probs)
 }
 
 #------------------------------------------------------------------------------
@@ -89,27 +81,26 @@ forward_sum <- function(obs, init_prob, trans_mat, outcome_mat) {
 #   trans_mat: The transition matrix P
 #   outcome_mat: The observation matrix E
 #------------------------------------------------------------------------------
-backward_sum <- function(obs, trans_mat, outcome_mat) {
-    # Store some quantities for convenience
-    len <- length(obs)    # Length of observations
-    state_label <- colnames(trans_mat)   # The label of states, e.g., {"H","T"}
-    num_state <- length(state_label)    # The number of states
-    # Set up objects to store the results
-    probs <- matrix(0, nrow=len, ncol=num_state)
-    probs[len,] <- 1
-    colnames(probs) <- state_label
-    # Start calculating
-    for (i in (len - 1):1) {
-        for (current_state in state_label) {
-            # probs[i,current_state] == P(o_{i+1},...,o_t | q_i, lambda)
-            for (future_state in state_label) {
-                # P(q_{i+1} | q_i, lambda) * P(o_{i+1} | q_{i+1}, lambda) * P(o_{i+2},...,o_t | q_{i+1}, lambda)
-                increment <- trans_mat[current_state,future_state] * outcome_mat[future_state,obs[i+1]] * probs[i+1,future_state]
-                probs[i,current_state] <- probs[i,current_state] + increment
-            }
-        }
+backward_algorithm <- function(observations, init_dist, trans_mat, emit_mat, output=NA) {
+    # Record the constants
+    T <- length(observations)
+    num_states <- nrow(emit_mat)
+    # Set up forward table
+    beta <- matrix(0, nrow=num_states, ncol=T)
+    # Initialization
+    beta[, T] <- 1
+    # Recursion
+    for (t in (T-1):1) {
+        beta[, t] <- trans_mat %*% (emit_mat[, observations[t+1]] * beta[, t+1])
     }
-    return(probs)
+    # termination
+    prob <- init_dist %*% (emit_mat[, observations[1]] * beta[, 1])
+    # Set up return values
+    if (output == "p") {
+        return(prob)
+    } else if (output == "t") {
+        return(beta)
+    }
 }
 
 #------------------------------------------------------------------------------
@@ -122,13 +113,28 @@ backward_sum <- function(obs, trans_mat, outcome_mat) {
 #   trans_mat: The transition matrix P
 #   outcome_mat: The observation matrix E
 #------------------------------------------------------------------------------
-forward_backward <- function(obs, init_prob, trans_mat, outcome_mat) {
-    len <- length(obs)
-    prob_alpha <- forward_sum(obs, init_prob, trans_mat, outcome_mat)   # The probability calculated by alpha-pass
-    prob_beta <- backward_sum(obs, trans_mat, outcome_mat)   # The probability calculated by alpha-pass
-    prob_t <- sum(prob_alpha[len,])     # The cumulative probability
-    likelihood <- prob_alpha * prob_beta / prob_t     # The likelihood for each stage
-    return(colnames(likelihood)[apply(likelihood, 1, which.max)])
+fb_decoding <- function(observations, init_dist, trans_mat, emit_mat, output=NA) {
+    # Record the constants
+    T <- length(observations)
+    # Save the labels for states
+    if (is.null(rownames(emit_mat))) {
+        state_labels <- 1:num_states
+    } else {
+        state_labels <- rownames(emit_mat)
+    }
+    # Obtain forward and backward tables and total likelihood
+    alpha <- forward_algorithm(observations, init_dist, trans_mat, emit_mat, output="t")
+    beta <- backward_algorithm(observations, init_dist, trans_mat, emit_mat, output="t")
+    total_prob <- sum(alpha[, T])
+    # total_prob <- init_dist %*% (emit_mat[, observations[1]] * beta[, 1])
+    # Compute likelihood for each state at time t
+    gamma <- alpha * beta / total_prob
+    # Set up return values
+    if (output == "q") {
+        return(state_labels[apply(gamma, 2, which.max)])
+    } else if (output == "t") {
+        return(gamma)
+    }
 }
 
 #------------------------------------------------------------------------------
@@ -141,36 +147,41 @@ forward_backward <- function(obs, init_prob, trans_mat, outcome_mat) {
 #   trans_mat: The transition matrix P
 #   outcome_mat: The observation matrix E
 #------------------------------------------------------------------------------
-viterbi <- function(obs, init_prob, trans_mat, outcome_mat) {
-    # Store some quantities for convenience
-    len <- length(obs)
-    state_label <- colnames(trans_mat)   # The label of states, e.g., {"H","T"}
-    num_state <- length(state_label)    # The number of states
-    # Initialize the matrices v and s
-    v <- matrix(0, nrow=len, ncol=num_state)
-    s <- matrix(0, nrow=len, ncol=num_state)
-    colnames(v) <- state_label
-    colnames(s) <- state_label
-    # Fill the first row
-    for (k in 1:num_state) {
-        v[1, k] <- log(outcome_mat[k, obs[1]] * init_prob[k])
+viterbi <- function(observations, init_dist, trans_mat, emit_mat, output=NA) {
+    # Record the constants
+    T <- length(observations)
+    num_states <- nrow(emit_mat)
+    # Save the labels for states
+    if (is.null(rownames(emit_mat))) {
+        state_labels <- 1:num_states
+    } else {
+        state_labels <- rownames(emit_mat)
     }
-    # Continue filling
-    for (i in 2:len) {
-        for (current_state in state_label) {
-            tmp_prob <- matrix(0, nrow=1, ncol=num_state)
-            colnames(tmp_prob) <- state_label
-            for (past_state in state_label) {
-                tmp_prob[1, past_state] <- log(trans_mat[past_state, current_state]) + v[i-1, past_state]
-            }
-            v[i, current_state] <- log(outcome_mat[current_state, obs[i]]) + max(tmp_prob)
-            s[i, current_state] <- state_label[which.max(tmp_prob)]
+    # Set up matrix V and S
+    V <- matrix(0, nrow=num_states, ncol=T)
+    S <- matrix(0, nrow=num_states, ncol=T)
+    # Initialization
+    V[, 1] <- log(init_dist * emit_mat[, observations[1]])
+    # Recursion
+    for (t in 2:T) {
+        for (s in 1:num_states) {
+            values <- log(trans_mat[, s]) + V[, t-1]
+            S[s, t] <- which.max(values)
+            V[s, t] <- log(emit_mat[s, observations[t]]) + values[S[s, t]]
         }
     }
-    # Back tracing the states
-    Q <- c(state_label[which.max(v[len,])])
-    for (i in len:2) {
-        Q <- c(as.character(s[len-1, Q[1]]), Q)
+    # Termination
+    states <- c(which.max[V[, T]])
+    for (t in T:2) {
+        states <- c(V[states[0], t], states)
     }
-    return(Q)
+    states <- state_labels[states]
+    # Set up return values
+    if (output == "q") {
+        return(states)
+    } else if (output == "v") {
+        return(V)
+    } else if (output == "s") {
+        return(S)
+    }
 }
