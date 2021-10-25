@@ -49,3 +49,15 @@ MultiIntervals <- function(data, alpha, options = "tsquare") {
     cat(i, ": (", round(xbar[i] - moe, 3), ",", round(xbar[i] + moe, 3), ")\n")
   }
 }
+
+chisqplot <- function(data, title = "Chi-Square Plot") {
+  xbar <- apply(data, 2, mean)
+  S <- cov(data)
+  n <- nrow(data)
+  p <- ncol(data)
+  diff <- data.matrix(data - rep(1, n) %*% t(xbar))
+  d <- diag(diff %*% solve(S) %*% t(diff))
+  q <- qchisq((1:n - 0.5) / n, p)
+  plot(sort(d)~q, xlab = "Theoretical Quantiles", ylab = "Sample Quantiles", main = title)
+  abline(a = 0, b = 1)
+}
