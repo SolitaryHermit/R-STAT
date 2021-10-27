@@ -61,3 +61,50 @@ chisqplot <- function(data, title = "Chi-Square Plot") {
   plot(sort(d)~q, xlab = "Theoretical Quantiles", ylab = "Sample Quantiles", main = title)
   abline(a = 0, b = 1)
 }
+
+compareMean <- function(data1, data2, diffx, alpha, conf.int = FALSE, conf.option = "tsquare") {
+  if (ncol(data1) != ncol(data2)) {
+    stop("The numbers of variables in these two data sets do not match!")
+  }
+  n1 <- nrow(data1)
+  n2 <- nrow(data2)
+  p <- ncol(data1)
+  xbar1 <- apply(data1, 2, mean)
+  xbar2 <- apply(data2, 2, mean)
+  diff <- xbar1 - xbar2
+  S1 <- var(data1)
+  S2 <- var(data2)
+  S.pooled <- ((n1 - 1) * S1 + (n2 - 1) * S2) / (n1 + n2 - 2)
+  
+  S <- S.pooled * (1 / n1 + 1 / n2)
+  Tsq <- t(diff - diffx) %*% solve(S) %*% (diff - diffx)
+  c <- (n1 + n2 - 2) * p * qf(1 - alpha, p, n1 + n2 - p - 1) / (n1 + n2 - p - 1)
+  
+  cat("n1 =", n1, ", "n2 =", n2, ", p =", p, "\n")
+  cat("The T-square statistic is", round(Tsq, 3), "\n")
+  cat("The critical value is", round(c, 3), "\n")
+  if(Tsq > c) {
+    cat("We reject H0 at significant level", 100 * (1 - alpha), "%")
+  } else {
+    cat("We fail to reject H0 at significant level", 100 * (1 - alpha), "%")
+  }
+  
+  if (!conf.int) {
+    if (conf.option == "tsquare") {
+      cat("The simultaneous T-square", 100 * (1 - alpha), "% C.I.'s are:\n")
+      for (i in 1:p) {
+        moe <- sqrt(c * S[i, i])
+        cat(i, ": (", round(diff[i] - moe, 3), ",", round(diff[i] + moe, 3), ")\n")
+      }
+    } else if (conf.option == "bonferroni") {
+      cat("The Bonferroni", 100 * (1 - alpha), "% C.I.'s are:\n")
+      t <- qt(1 - alpha / (2 * p), n1 + n2 - 2)
+      for (i in 1:p) {
+        moe <- t * sqrt(S[i, i])
+        cat(i, ": (", round(diff[i] - moe, 3), ",", round(diff[i] + moe, 3), ")\n")
+      }
+    } else {
+      stop("The options must be one of the followings: tsquare, bonferroni")
+    }
+  }
+}
