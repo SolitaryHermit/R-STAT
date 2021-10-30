@@ -108,3 +108,16 @@ compareMean <- function(data1, data2, diffx, alpha, conf.int = FALSE, conf.optio
     }
   }
 }
+
+normplot <- function(v, title) {
+  n <- length(v)
+  q <- qnorm((1:n - 0.5) / n)
+  r_Q <- cor(q, v)
+  
+  qqnorm(v, main = title)
+  qqline(v)
+  
+  r <- format(r_Q, digits = 3)
+  eq <- bquote(r[Q] == .(r))
+  mtext(eq)
+}
