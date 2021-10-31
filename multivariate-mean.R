@@ -142,3 +142,42 @@ ldiscriminant <- function(data1, data2) {
   confusion[2, 1] <- n2 - confusion[2, 2]
   return(confusion)
 }
+
+classification <- function(data1, data2, obs) {
+  n1 <- nrow(data1)
+  n2 <- nrow(data2)
+  xbar1 <- apply(data1, 2, mean)
+  xbar2 <- apply(data2, 2, mean)
+  Spooled <- ((n1 - 1) * var(data1) + (n2 - 1) * var(data2)) / (n1 + n2 - 2)
+  a <- t(xbar1 - xbar2) %*% solve(Spooled)
+  m <- as.numeric(a %*% (xbar1 + xbar2) / 2)
+  if (as.numeric(a %*% t(obs)) >= m) {
+    return(1)
+  } else {
+    return(2)
+  }
+}
+
+
+holdout <- function(data1, data2) {
+  n1 <- nrow(data1)
+  n2 <- nrow(data2)
+  pop1 <- rep(0, n1)
+  for (i in 1:n1) {
+    pop1[i] <- classification(data1[-i,], data2, data1[i,])
+  }
+  pop2 <- rep(0, n2)
+  for (j in 1:n2) {
+    pop2[j] <- classification(data1, data2[-j,], data2[j,])
+  }
+  
+  confusion <- matrix(rep(0, 4), nrow = 2, ncol = 2)
+  rownames(confusion) <- c("population 1", "population 2")
+  colnames(confusion) <- c("population 1", "population 2")
+  confusion[1, 1] <- sum(pop1 == 1)
+  confusion[1, 2] <- sum(pop1 == 2)
+  confusion[2, 1] <- sum(pop2 == 1)
+  confusion[2, 2] <- sum(pop2 == 2)
+
+  return(confusion)
+}
