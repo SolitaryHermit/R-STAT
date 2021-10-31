@@ -121,3 +121,24 @@ normplot <- function(v, title) {
   eq <- bquote(r[Q] == .(r))
   mtext(eq)
 }
+
+ldiscriminant <- function(data1, data2) {
+  n1 <- nrow(data1)
+  n2 <- nrow(data2)
+  xbar1 <- apply(data1, 2, mean)
+  xbar2 <- apply(data2, 2, mean)
+  S1 <- var(data1)
+  S2 <- var(data2)
+  Spooled <- ((n1 - 1) * S1 + (n2 - 1) * S2) / (n1 + n2 - 2)
+  a <- t(xbar1 - xbar2) %*% solve(Spooled)
+  m <- as.numeric(a %*% (xbar1 + xbar2) / 2)
+  
+  confusion <- matrix(rep(0, 4), nrow = 2, ncol = 2)
+  rownames(confusion) <- c("population 1", "population 2")
+  colnames(confusion) <- c("population 1", "population 2")
+  confusion[1, 1] <- sum(a %*% t(data.matrix(data1)) >= m)
+  confusion[2, 2] <- sum(a %*% t(data.matrix(data2)) < m)
+  confusion[1, 2] <- n1 - confusion[1, 1]
+  confusion[2, 1] <- n2 - confusion[2, 2]
+  return(confusion)
+}
