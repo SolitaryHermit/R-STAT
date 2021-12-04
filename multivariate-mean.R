@@ -181,3 +181,19 @@ holdout <- function(data1, data2) {
 
   return(confusion)
 }
+
+
+# Output the summary of clusters
+# arguments: clusters -- output from cutree
+clustersummary <- function(clusters) {
+  M <- matrix(rep(0, 4*4), nrow = 4, ncol = 4)
+  rownames(M) <- c("Cluster 1:", "Cluster 2:", "Cluster 3:", "Cluster 4:")
+  colnames(M) <- c("1", "3", "6", "10")
+  for (i in 1:4) {
+    distr <- summary(factor(as.numeric(names(which(clusters == i))) %% 11))
+    for (j in c("1", "3", "6", "10")) {
+      M[i, j] <- ifelse(is.na(distr[j]), 0, distr[j])
+    }
+  }
+  print(M)
+}
