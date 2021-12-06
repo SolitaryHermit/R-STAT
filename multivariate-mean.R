@@ -197,3 +197,31 @@ clustersummary <- function(clusters) {
   }
   print(M)
 }
+
+clustersummary <- function(clusters) {
+    labels <- c("1", "3", "6", "10")
+    M <- matrix(rep(0, 4*4), nrow = 4, ncol = 4)
+    rownames(M) <- c("Cluster 1:", "Cluster 2:", "Cluster 3:", "Cluster 4:")
+    colnames(M) <- labels
+    for (i in 1:4) {
+        # We use the row number to determine the actual class of each observation in the cluster
+        distr <- summary(factor(as.numeric(names(which(clusters == i))) %% 11))
+        for (j in labels) 
+            M[i, j] <- ifelse(is.na(distr[j]), 0, distr[j])
+    }
+    # Permute the labels and find the accuracy
+    labels_perm <- permn(labels)
+    max_corr <- 0
+    max_index <- 0
+    for (n in 1:factorial(4)) {
+        rownames(M) <- labels_perm[[n]]
+        correction <- sum(M[matrix(rep(labels, 2), nrow = 4, ncol = 2)])
+        max_index <- ifelse(max_corr >= correction, max_index, n)
+        max_corr <- ifelse(max_corr >= correction, max_corr, correction)
+    }
+    cat("Accuracy =", max_corr / 192)
+    cat(", Classification:\n")
+    rownames(M) <- labels_perm[[max_index]]
+    M[1:4,] <- M[labels,]
+    print(M)
+}
